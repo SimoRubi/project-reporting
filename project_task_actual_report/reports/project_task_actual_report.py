@@ -5,13 +5,28 @@
 from odoo import api, fields, models, tools
 
 
+TRACKED_TASK_FIELDS = [
+    'name',
+    'user_id',
+    'stage_id',
+    'kanban_state',
+]
+"""
+These fields are defined as tracked (see track_visibility attribute) 
+in the project.task model.
+Editing this list automatically 
+includes new data in the view underlying the below report.
+In order to show them to the user, you should create new fields and views.
+"""
+
+
 class ProjectTaskActualReport(models.AbstractModel):
     _name = 'project.task.actual.report'
     _description = "Actual time spent by tasks"
     _order = 'date'
     _rec_name = 'task_id'
 
-    # _depends = {}
+    _depends = {}
     task_id = fields.Many2one(
         comodel_name='project.task',
         readonly=True,
@@ -72,34 +87,59 @@ class ProjectTaskActualReport(models.AbstractModel):
     @api.model
     def _get_real_data_query(self):
         """Data gathered from DB."""
-        return """select
+        task_model = self.env['project.task']
+
+        tracked_fields = {ttf: task_model._fields.get(ttf)
+                          for ttf in TRACKED_TASK_FIELDS}
+
+        # See mail.tracking.value.create_tracking_values
+        field_type_mapping = {
+            'many2one': 'integer',
+            'selection': 'char',
+            'char': 'char',
+        }
+        select_clause = ["""select
     mm.res_id task_id,
     mm.id message_id,
-    mm."date" date,
-    mtv_name.old_value_char old_name,
-    mtv_name.new_value_char new_name,
-    mtv_user.old_value_integer old_user,
-    mtv_user.new_value_integer new_user,
-    mtv_stage.old_value_integer old_stage,
-    mtv_stage.new_value_integer new_stage,
-    mtv_kanban_state.old_value_char old_kanban_state,
-    mtv_kanban_state.new_value_char new_kanban_state
-from
+    mm."date" date
+"""]
+        for field_name in TRACKED_TASK_FIELDS:
+            tracked_field = tracked_fields.get(field_name)
+            field_type = field_type_mapping.get(tracked_field.type)
+            select_clause.append("""
+    mtv_{field_name}.old_value_{field_type} old_{field_name},
+    mtv_{field_name}.new_value_{field_type} new_{field_name}""".format(
+                field_type=field_type,
+                field_name=field_name,
+            ))
+        select_clause = ', '.join(select_clause)
+
+        field_join_mapping = {
+            'always': 'join',
+            'onchange': 'left join',
+        }
+        from_clause = ["""from
     mail_message mm
-join mail_tracking_value mtv_name on
-    mtv_name.mail_message_id = mm.id
-    and mtv_name.field = 'name'
-join mail_tracking_value mtv_user on
-    mtv_user.mail_message_id = mm.id
-    and mtv_user.field = 'user_id'
-left join mail_tracking_value mtv_stage on
-    mtv_stage.mail_message_id = mm.id
-    and mtv_stage.field = 'stage_id'
-left join mail_tracking_value mtv_kanban_state on
-    mtv_kanban_state.mail_message_id = mm.id
-    and mtv_kanban_state.field = 'kanban_state'
-where mm.model = 'project.task'
-"""
+"""]
+        for field_name in TRACKED_TASK_FIELDS:
+            tracked_field = tracked_fields.get(field_name)
+            track_type = tracked_field.track_visibility
+            join_type = field_join_mapping.get(track_type)
+            from_clause.append("""
+    {join_type} mail_tracking_value mtv_{field_name} on
+        mtv_{field_name}.mail_message_id = mm.id
+        and mtv_{field_name}.field = '{field_name}'""".format(
+                field_name=field_name,
+                join_type=join_type,
+            ))
+        from_clause = ' '.join(from_clause)
+
+        where_clause = """where mm.model = 'project.task'"""
+        return ' '.join([
+            select_clause,
+            from_clause,
+            where_clause,
+        ])
 
     @api.model
     def _get_present_data_query(self):
@@ -149,10 +189,10 @@ where mm.model = 'project.task'
     *,
     count(new_name) 
     over (partition by task_id order by message_id) count_new_name,
-    count(new_user)
-    over (partition by task_id order by message_id) count_new_user,
-    count(new_stage) 
-    over (partition by task_id order by message_id) count_new_stage,
+    count(new_user_id)
+    over (partition by task_id order by message_id) count_new_user_id,
+    count(new_stage_id) 
+    over (partition by task_id order by message_id) count_new_stage_id,
     count(new_kanban_state) 
     over (partition by task_id order by message_id) count_new_kanban_state
 from ({data}) data
@@ -175,15 +215,15 @@ from ({data}) data
     else first_value(new_name) 
         over (partition by task_id, count_new_name)
     end "name",
-    case when new_user <> old_user
-    then old_user
-    else first_value(new_user) 
-        over (partition by task_id, count_new_user)
+    case when new_user_id <> old_user_id
+    then old_user_id
+    else first_value(new_user_id) 
+        over (partition by task_id, count_new_user_id)
     end user_id,
-    case when new_stage <> old_stage
-    then old_stage
-    else first_value(new_stage) 
-        over (partition by task_id, count_new_stage)
+    case when new_stage_id <> old_stage_id
+    then old_stage_id
+    else first_value(new_stage_id) 
+        over (partition by task_id, count_new_stage_id)
     end stage_id,
     case when new_kanban_state <> old_kanban_state
     then old_kanban_state
