@@ -87,10 +87,7 @@ class ProjectTaskActualReport(models.AbstractModel):
     @api.model
     def _get_real_data_query(self):
         """Data gathered from DB."""
-        task_model = self.env['project.task']
-
-        tracked_fields = {ttf: task_model._fields.get(ttf)
-                          for ttf in TRACKED_TASK_FIELDS}
+        tracked_fields = self._get_tracked_fields()
 
         select_clause = self._get_real_data_select(tracked_fields)
         from_clause = self._get_real_data_from(tracked_fields)
@@ -100,6 +97,13 @@ class ProjectTaskActualReport(models.AbstractModel):
             from_clause,
             where_clause,
         ])
+
+    def _get_tracked_fields(self):
+        """Get the field objects from field names in TRACKED_TASK_FIELDS."""
+        task_model = self.env['project.task']
+        tracked_fields = {ttf: task_model._fields.get(ttf)
+                          for ttf in TRACKED_TASK_FIELDS}
+        return tracked_fields
 
     def _get_real_data_where(self, _tracked_fields):
         """Where clause for gathering data from DB."""
