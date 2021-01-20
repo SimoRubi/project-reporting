@@ -98,6 +98,7 @@ class ProjectTaskActualReport(models.AbstractModel):
             where_clause,
         ])
 
+    @api.model
     def _get_tracked_fields(self):
         """Get the field objects from field names in TRACKED_TASK_FIELDS."""
         task_model = self.env['project.task']
@@ -105,11 +106,13 @@ class ProjectTaskActualReport(models.AbstractModel):
                           for ttf in TRACKED_TASK_FIELDS}
         return tracked_fields
 
+    @api.model
     def _get_real_data_where(self, _tracked_fields):
         """Where clause for gathering data from DB."""
         where_clause = """where mm.model = 'project.task'"""
         return where_clause
 
+    @api.model
     def _get_real_data_from(self, tracked_fields):
         """From clause for gathering data from DB."""
         field_join_mapping = {
@@ -133,6 +136,7 @@ class ProjectTaskActualReport(models.AbstractModel):
         from_clause = ' '.join(from_clause)
         return from_clause
 
+    @api.model
     def _get_real_data_select(self, tracked_fields):
         """Select clause for gathering data from DB."""
         # See mail.tracking.value.create_tracking_values
