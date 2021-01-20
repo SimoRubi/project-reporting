@@ -92,6 +92,45 @@ class ProjectTaskActualReport(models.AbstractModel):
         tracked_fields = {ttf: task_model._fields.get(ttf)
                           for ttf in TRACKED_TASK_FIELDS}
 
+        select_clause = self._get_real_data_select(tracked_fields)
+        from_clause = self._get_real_data_from(tracked_fields)
+        where_clause = self._get_real_data_where(tracked_fields)
+        return ' '.join([
+            select_clause,
+            from_clause,
+            where_clause,
+        ])
+
+    def _get_real_data_where(self, _tracked_fields):
+        """Where clause for gathering data from DB."""
+        where_clause = """where mm.model = 'project.task'"""
+        return where_clause
+
+    def _get_real_data_from(self, tracked_fields):
+        """From clause for gathering data from DB."""
+        field_join_mapping = {
+            'always': 'join',
+            'onchange': 'left join',
+        }
+        from_clause = ["""from
+    mail_message mm
+"""]
+        for field_name in TRACKED_TASK_FIELDS:
+            tracked_field = tracked_fields.get(field_name)
+            track_type = tracked_field.track_visibility
+            join_type = field_join_mapping.get(track_type)
+            from_clause.append("""
+    {join_type} mail_tracking_value mtv_{field_name} on
+        mtv_{field_name}.mail_message_id = mm.id
+        and mtv_{field_name}.field = '{field_name}'""".format(
+                field_name=field_name,
+                join_type=join_type,
+            ))
+        from_clause = ' '.join(from_clause)
+        return from_clause
+
+    def _get_real_data_select(self, tracked_fields):
+        """Select clause for gathering data from DB."""
         # See mail.tracking.value.create_tracking_values
         field_type_mapping = {
             'many2one': 'integer',
@@ -113,33 +152,7 @@ class ProjectTaskActualReport(models.AbstractModel):
                 field_name=field_name,
             ))
         select_clause = ', '.join(select_clause)
-
-        field_join_mapping = {
-            'always': 'join',
-            'onchange': 'left join',
-        }
-        from_clause = ["""from
-    mail_message mm
-"""]
-        for field_name in TRACKED_TASK_FIELDS:
-            tracked_field = tracked_fields.get(field_name)
-            track_type = tracked_field.track_visibility
-            join_type = field_join_mapping.get(track_type)
-            from_clause.append("""
-    {join_type} mail_tracking_value mtv_{field_name} on
-        mtv_{field_name}.mail_message_id = mm.id
-        and mtv_{field_name}.field = '{field_name}'""".format(
-                field_name=field_name,
-                join_type=join_type,
-            ))
-        from_clause = ' '.join(from_clause)
-
-        where_clause = """where mm.model = 'project.task'"""
-        return ' '.join([
-            select_clause,
-            from_clause,
-            where_clause,
-        ])
+        return select_clause
 
     @api.model
     def _get_present_data_query(self):
