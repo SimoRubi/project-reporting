@@ -230,20 +230,35 @@ mm.model = 'project.task'
         This will be used to fill NULL values in the rows."""
         # The underlying idea comes from
         # https://stackoverflow.com/a/19012333/11534960
-        return """select
-    *,
-    count(new_name) 
-    over (partition by task_id order by message_id) count_new_name,
-    count(new_user_id)
-    over (partition by task_id order by message_id) count_new_user_id,
-    count(new_stage_id) 
-    over (partition by task_id order by message_id) count_new_stage_id,
-    count(new_kanban_state) 
-    over (partition by task_id order by message_id) count_new_kanban_state
-from ({data}) data
+        select_clause = self._get_partitioned_data_select()
+        from_clause = self._get_partitioned_data_from()
+        return ' '.join([
+            select_clause,
+            from_clause,
+        ])
+
+    @api.model
+    def _get_partitioned_data_select(self):
+        """Select clause for partitioned data."""
+        select_clause = ["""select
+    *
+"""]
+        for field_name in TRACKED_TASK_FIELDS:
+            select_clause.append("""
+    count(new_{field_name})
+    over (partition by task_id order by message_id) count_new_{field_name}
+""".format(field_name=field_name))
+        select_clause = ', '.join(select_clause)
+        return select_clause
+
+    @api.model
+    def _get_partitioned_data_from(self):
+        """From clause for partitioned data."""
+        from_clause = """from ({data}) data
 """.format(
             data=self._get_data_query(),
         )
+        return from_clause
 
     @api.model
     def _get_filled_data_query(self):
