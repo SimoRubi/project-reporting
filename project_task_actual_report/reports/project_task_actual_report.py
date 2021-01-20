@@ -165,28 +165,52 @@ class ProjectTaskActualReport(models.AbstractModel):
     @api.model
     def _get_present_data_query(self):
         """Create a record representing present state of every task."""
-        return """select
+        select_clause = self._get_present_data_select()
+        from_clause = self._get_present_data_from()
+        where_clause = self._get_present_data_where()
+        return ' '.join([
+            select_clause,
+            from_clause,
+            where_clause,
+        ])
+
+    @api.model
+    def _get_present_data_select(self):
+        """Select clause for record representing present state."""
+        select_clause = ["""select
     pt.id task_id,
     (
     select
         max(mail_message.id) as max_message_id
     from
         mail_message) + pt.id message_id,
-    now() at time zone 'utc',
-    pt.name,
-    null,
-    pt.user_id ,
-    null,
-    pt.stage_id ,
-    null,
-    pt.kanban_state,
+    now() at time zone 'utc'
+"""]
+        for field_name in TRACKED_TASK_FIELDS:
+            select_clause.append("""
+    pt.{field_name},
     null
-from
+""".format(field_name=field_name))
+        select_clause = ', '.join(select_clause)
+        return select_clause
+
+    @api.model
+    def _get_present_data_from(self):
+        """From clause for record representing present state."""
+        from_clause = """from
     project_task pt
 join mail_message mm on
-    pt.id = mm.res_id 
-where mm.model = 'project.task'
+    pt.id = mm.res_id
 """
+        return from_clause
+
+    @api.model
+    def _get_present_data_where(self):
+        """Where clause for record representing present state."""
+        where_clause = """where
+mm.model = 'project.task'
+"""
+        return where_clause
 
     @api.model
     def _get_data_query(self):
