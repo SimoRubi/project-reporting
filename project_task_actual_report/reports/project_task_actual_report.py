@@ -273,22 +273,22 @@ mm.model = 'project.task'
     case when new_name <> old_name -- Change counts as old value
     then old_name
     else first_value(new_name) 
-        over (partition by task_id, count_new_name)
+        over (partition by task_id, count_new_name order by message_id)
     end "name",
     case when new_user_id <> old_user_id
     then old_user_id
     else first_value(new_user_id) 
-        over (partition by task_id, count_new_user_id)
+        over (partition by task_id, count_new_user_id order by message_id)
     end user_id,
     case when new_stage_id <> old_stage_id
     then old_stage_id
     else first_value(new_stage_id) 
-        over (partition by task_id, count_new_stage_id)
+        over (partition by task_id, count_new_stage_id order by message_id)
     end stage_id,
     case when new_kanban_state <> old_kanban_state
     then old_kanban_state
     else first_value(new_kanban_state) 
-        over (partition by task_id, count_new_kanban_state)
+        over (partition by task_id, count_new_kanban_state order by message_id)
     end kanban_state,
     lag(date) over (partition by task_id order by date) as prev_update,
     extract(epoch from 
