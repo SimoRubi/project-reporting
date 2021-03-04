@@ -12,9 +12,9 @@ TRACKED_TASK_FIELDS = [
     'kanban_state',
 ]
 """
-These fields are defined as tracked (see track_visibility attribute) 
+These fields are defined as tracked (see track_visibility attribute)
 in the project.task model.
-Editing this list automatically 
+Editing this list automatically
 includes new data in the view underlying the below report.
 In order to show them to the user, you should create new fields and views.
 """
@@ -272,27 +272,27 @@ mm.model = 'project.task'
     date,
     case when new_name <> old_name -- Change counts as old value
     then old_name
-    else first_value(new_name) 
+    else first_value(new_name)
         over (partition by task_id, count_new_name order by message_id)
     end "name",
     case when new_user_id <> old_user_id
     then old_user_id
-    else first_value(new_user_id) 
+    else first_value(new_user_id)
         over (partition by task_id, count_new_user_id order by message_id)
     end user_id,
     case when new_stage_id <> old_stage_id
     then old_stage_id
-    else first_value(new_stage_id) 
+    else first_value(new_stage_id)
         over (partition by task_id, count_new_stage_id order by message_id)
     end stage_id,
     case when new_kanban_state <> old_kanban_state
     then old_kanban_state
-    else first_value(new_kanban_state) 
+    else first_value(new_kanban_state)
         over (partition by task_id, count_new_kanban_state order by message_id)
     end kanban_state,
     lag(date) over (partition by task_id order by date) as prev_update,
-    extract(epoch from 
-        (date - lag(date) 
+    extract(epoch from
+        (date - lag(date)
             over (partition by task_id order by date)))/ 3600 as duration
 from ({partitioned_data}) partitioned_data
 """.format(
@@ -305,10 +305,10 @@ from ({partitioned_data}) partitioned_data
 
         For instance, the first record always has duration 0
         because there has been no previous event (prev_update is NULL)."""
-        return """select 
+        return """select
     *
 from ({filled_data}) filled_data
-where 
+where
     prev_update is not null
 """.format(
             filled_data=self._get_filled_data_query(),
@@ -319,7 +319,7 @@ where
         super(ProjectTaskActualReport, self).init()
         table_name = self._table
         tools.drop_view_if_exists(self.env.cr, table_name)
-        self.env.cr.execute("""CREATE or REPLACE VIEW 
+        self.env.cr.execute("""CREATE or REPLACE VIEW
         {table_name} as ({cleaned_data})""".format(
             table_name=table_name,
             cleaned_data=self._get_cleaned_data_query(),
